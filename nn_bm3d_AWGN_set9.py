@@ -183,7 +183,7 @@ if __name__ == "__main__":
         for clean in cleans:
             result = './output/nn_bm3d_AWGN_set9/Gaussian_{}/{}/'.format(noise, clean.split('/')[-1][:-4])
             os.system('mkdir -p ' + result)
-            clean_im = Image.open(clean)
+            clean_im = Image.open(clean) # BRG -> RGB
             clean_im_np = np.array(clean_im).transpose(2, 0, 1)
             noise_im_np = clean_im_np + noise * np.random.randn(clean_im_np.shape[0], 
                                                                 clean_im_np.shape[1], 

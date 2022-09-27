@@ -6,7 +6,7 @@ import numpy as np
 
 import bm3d
 
-from skimage.measure import compare_psnr, compare_ssim
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 import matplotlib.pyplot as plt
 
 import glob
@@ -40,8 +40,8 @@ def denoising_gray(noise_im, clean_im, LR=1e-2, sigma=5, rho=1, eta=0.5,
     sig = noise_level 
     r_bm3d = bm3d.bm3d(noise_im, sig)
     r_bm3d = np.clip(r_bm3d, 0, 1)
-    psnr_bm3d = compare_psnr(clean_im, r_bm3d, 1)
-    ssim_bm3d = compare_ssim(r_bm3d, clean_im, multichannel=False, data_range=1)
+    psnr_bm3d = peak_signal_noise_ratio(clean_im, r_bm3d, data_range=1)
+    ssim_bm3d = structural_similarity(r_bm3d, clean_im, multichannel=False, data_range=1)
     
     print('PSNR_BM3D: {}, SSIM_BM3D: {}'.format(psnr_bm3d, ssim_bm3d), file=fo, flush=True)
     r_bm3d = Image.fromarray((255*r_bm3d).astype(np.uint8))
@@ -114,8 +114,8 @@ def denoising_gray(noise_im, clean_im, LR=1e-2, sigma=5, rho=1, eta=0.5,
 
             i0_til_np = np.clip(i0_til_np, 0, 1)
 
-            psnr_gt = compare_psnr(clean_im, i0_til_np, 1)
-            ssim_gt = compare_ssim(i0_til_np, clean_im, multichannel=False, data_range=1)
+            psnr_gt = peak_signal_noise_ratio(clean_im, i0_til_np, data_range=1)
+            ssim_gt = structural_similarity(i0_til_np, clean_im, multichannel=False, data_range=1)
 
             output = i0_til_np
           
@@ -157,6 +157,7 @@ def denoising_gray(noise_im, clean_im, LR=1e-2, sigma=5, rho=1, eta=0.5,
 
 
 if __name__ == "__main__":
+    print(torch.cuda.is_available())
     clean_roots = sorted(glob.glob('./data/BSD68/*.png'))
     noise_levels = [25, 50, 75, 100]
     
@@ -177,7 +178,7 @@ if __name__ == "__main__":
         bm3d_psnr = []
         bm3d_ssim = []
         
-        for clean_root in clean_roots:
+        for clean_root in [clean_roots[0]]:
             result = './output/nn_bm3d_AWGN_BSD68/Gaussian_{}/{}/'.format(noise_level, clean_root.split('/')[-1][:-4])
             os.system('mkdir -p ' + result)
             

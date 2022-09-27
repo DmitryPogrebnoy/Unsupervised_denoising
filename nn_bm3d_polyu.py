@@ -8,15 +8,17 @@ import numpy as np
 from utils.image_tool import pil_to_np, np_to_pil, np_to_torch, torch_to_np
 
 import bm3d
-from skimage.measure import compare_psnr, compare_ssim
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 from skimage.restoration import estimate_sigma
 
 import matplotlib.pyplot as plt
 
+from tqdm import tqdm
+
 import glob
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def save_hist(x, root):
     x = x.flatten()
@@ -57,18 +59,18 @@ def denoising(noise_im, clean_im, LR=1e-2, sigma=3, rho=1, eta=0.5, total_step=3
     input_depth = 3
     latent_dim = 3
     
-    en_net = UNet(input_depth, latent_dim).to(device)
-    de_net = UNet(latent_dim, input_depth).to(device)
+    en_net = UNet(input_depth, latent_dim)
+    de_net = UNet(latent_dim, input_depth)
     
     parameters = [p for p in en_net.parameters()] + [p for p in de_net.parameters()]
     optimizer = torch.optim.Adam(parameters, lr=LR)
     
-    l2_loss = torch.nn.MSELoss().cuda()
+    l2_loss = torch.nn.MSELoss()
     
-    i0 = np_to_torch(noise_im).to(device)
-    noise_im_torch = np_to_torch(noise_im).to(device)
-    i0_til_torch = np_to_torch(noise_im).to(device)
-    Y = torch.zeros_like(noise_im_torch).to(device)
+    i0 = np_to_torch(noise_im)
+    noise_im_torch = np_to_torch(noise_im)
+    i0_til_torch = np_to_torch(noise_im)
+    Y = torch.zeros_like(noise_im_torch)
         
     diff_original_np = noise_im.astype(np.float32) - clean_im.astype(np.float32)
     diff_original_name = 'Original_dis.png'
@@ -76,11 +78,11 @@ def denoising(noise_im, clean_im, LR=1e-2, sigma=3, rho=1, eta=0.5, total_step=3
     
     best_psnr = 0
     
-    for i in range(total_step):
+    for i in tqdm(range(total_step)):
         
 ################################# sub-problem 1 ###############################
 
-        for i_1 in range(prob1_iter):
+        for i_1 in tqdm(range(prob1_iter)):
             
             optimizer.zero_grad()
 
@@ -108,7 +110,7 @@ def denoising(noise_im, clean_im, LR=1e-2, sigma=3, rho=1, eta=0.5, total_step=3
             sig = eval_sigma(i+1, noise_level)
             
             i0_til_np = bm3d.bm3d_rgb(i0_np.transpose(1, 2, 0) + Y_np.transpose(1, 2, 0), sig).transpose(2, 0, 1)
-            i0_til_torch = np_to_torch(i0_til_np).to(device)
+            i0_til_torch = np_to_torch(i0_til_np)
             
 ################################# sub-problem 3 ###############################
 
@@ -135,8 +137,8 @@ def denoising(noise_im, clean_im, LR=1e-2, sigma=3, rho=1, eta=0.5, total_step=3
             save_hist(diff_np, result_root + diff_name)
 
             i0_til_np = torch_to_np(i0_til_torch).clip(0, 255)
-            psnr = compare_psnr(clean_im.transpose(1, 2, 0), i0_til_np.transpose(1, 2, 0), 255)
-            ssim = compare_ssim(clean_im.transpose(1, 2, 0), i0_til_np.transpose(1, 2, 0), multichannel=True, data_range=255)
+            psnr = peak_signal_noise_ratio(clean_im.transpose(1, 2, 0), i0_til_np.transpose(1, 2, 0), data_range=255)
+            ssim = structural_similarity(clean_im.transpose(1, 2, 0), i0_til_np.transpose(1, 2, 0), multichannel=True, data_range=255)
             
             i0_til_pil = np_to_pil(i0_til_np)
             i0_til_pil.save(os.path.join(result_root, '{}'.format(i) + '.png'))
@@ -168,7 +170,7 @@ if __name__ == "__main__":
     psnrs = []
     ssims = []
     
-    for noise, clean in zip(noises[96:], cleans[96:]):
+    for noise, clean in zip([noises[96]], [cleans[96]]):
         result = './output/nn_bm3d_polyu/{}/'.format(noise.split('/')[-1][:-9])
         os.system('mkdir -p ' + result)
         
